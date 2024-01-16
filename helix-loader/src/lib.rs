@@ -1,6 +1,8 @@
 pub mod config;
 pub mod grammar;
 
+use helix_stdx::path;
+
 use etcetera::base_strategy::{choose_base_strategy, BaseStrategy};
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
@@ -25,7 +27,7 @@ pub fn current_working_dir() -> PathBuf {
     }
 
     let path = std::env::current_dir()
-        .and_then(dunce::canonicalize)
+        .map(path::normalize)
         .expect("Couldn't determine current working directory");
     let mut cwd = CWD.write().unwrap();
     *cwd = Some(path.clone());
@@ -34,7 +36,7 @@ pub fn current_working_dir() -> PathBuf {
 }
 
 pub fn set_current_working_dir(path: impl AsRef<Path>) -> std::io::Result<()> {
-    let path = dunce::canonicalize(path)?;
+    let path = path::canonicalize(path, current_working_dir());
     std::env::set_current_dir(&path)?;
     let mut cwd = CWD.write().unwrap();
     *cwd = Some(path);
@@ -79,7 +81,8 @@ fn prioritize_runtime_dirs() -> Vec<PathBuf> {
     rt_dirs.push(conf_rt_dir);
 
     if let Ok(dir) = std::env::var("HELIX_RUNTIME") {
-        rt_dirs.push(dir.into());
+        let dir = path::expand_tilde(dir);
+        rt_dirs.push(path::normalize(dir));
     }
 
     // If this variable is set during build time, it will always be included
